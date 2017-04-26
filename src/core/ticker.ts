@@ -2,6 +2,38 @@ namespace engine {
 
     export type Ticker_Listener_Type = (deltaTime: number) => void;
 
+    export function setTimeout(func: Function, delayTime: number) {
+        var ticker = Ticker.getInstance();
+        var passedTime = 0;
+        var delayFunc = (delta) => {
+            passedTime += delta;
+            if (passedTime >= delayTime) {
+                func();
+                ticker.unregister(delayFunc);
+            }
+
+        }
+        ticker.register(delayFunc);
+    }
+
+    export function setInterval(func: Function, delayTime: number): number {
+        var passedTime = 0;
+        var ticker = Ticker.getInstance();
+        var delayFunc = (delta) => {
+            passedTime += delta;
+            if (passedTime >= delayTime) {
+                func();
+                passedTime -= delayTime;
+            }
+
+        }
+        return ticker.register(delayFunc);
+    }
+
+    export function clearInterval(key: number) {
+        Ticker.getInstance().unregister(key);
+    }
+
     export class Ticker {
 
         private static instance: Ticker;
@@ -16,20 +48,16 @@ namespace engine {
         listeners: Ticker_Listener_Type[] = [];
 
         register(listener: Ticker_Listener_Type) {
-            let x=this.listeners.indexOf(listener);
-            if(x<0){
-                this.listeners.push(listener);
-            }else{
-                console.log("already listen");
-            }
+            this.listeners.push(listener);
+            return this.listeners.indexOf(listener);
         }
 
-        unregister(listener: Ticker_Listener_Type) {
-            let x=this.listeners.indexOf(listener);
-            if(x>=0){
-                this.listeners.splice(x,1);
-            }else{
-                console.log("no listener");
+        unregister(input: Ticker_Listener_Type | number) {
+            if (input instanceof Number) {
+                this.listeners.splice(input, 1);
+            } else {
+                var index = this.listeners.indexOf(input);
+                this.listeners.splice(index, 1);
             }
         }
 

@@ -1,19 +1,33 @@
 namespace engine {
     export let run = (canvas: HTMLCanvasElement) => {
 
-        var stage = new DisplayObjectContainer();
+        var stage = engine.Stage.getInstance();
+        stage.width = canvas.width;
+        stage.height = canvas.height;
         let context2D = canvas.getContext("2d");
-        let render = new CanvasRenderer(stage, context2D);
-        Resourse.getInstance().initial();
+        let renderer = new CanvasRenderer(stage,context2D);
+        var currentTarget;                      //鼠标点击时当前的对象
+        var startTarget;                        //mouseDown时的对象
+        var isMouseDown = false;
+        var startPoint = new Point(-1,-1);
+        var movingPoint = new Point(0,0);
+        // var xhr = new XMLHttpRequest();
+        // xhr.open("get", "./Resources/RES.json");
+        // xhr.send();
+        // xhr.onload = () => {};
+        // var resoucesJson = RES.getRES("RES.json",(data) => {
+        //     resoucesJson = data;
+        //     RES.loadConfig(resoucesJson,()=>{console.log("Load Complete")});
+        // });
         let lastNow = Date.now();
         let frameHandler = () => {
             let now = Date.now();
             let deltaTime = now - lastNow;
             Ticker.getInstance().notify(deltaTime);
-            context2D.clearRect(0, 0, 400, 400);
+            context2D.clearRect(0, 0, stage.width, stage.height);
             context2D.save();
             stage.update();
-            render.render();
+            renderer.render();
             context2D.restore();
             lastNow = now;
             window.requestAnimationFrame(frameHandler);
@@ -21,75 +35,66 @@ namespace engine {
 
         window.requestAnimationFrame(frameHandler);
 
-        let hitResult: DisplayObject;
-        let currentX: number;
-        let currentY: number;
-        let lastX: number;
-        let lastY: number;
-        let isMouseDown = false;
-
-        window.onmousedown = (e) => {
-            isMouseDown = true;
-            let targetArray = EventManager.getInstance().targetArray;
-            targetArray.splice(0, targetArray.length);
-            hitResult = stage.hitTest(e.offsetX, e.offsetY);
-            currentX = e.offsetX;
-            currentY = e.offsetY;
-        }
-
-        window.onmousemove = (e) => {
-            let targetArray = EventManager.getInstance().targetArray;
-            lastX = currentX;
-            lastY = currentY;
-            currentX = e.offsetX;
-            currentY = e.offsetY;
-            if (isMouseDown) {
-                for (let i = 0; i < targetArray.length; i++) {
-                    for (let x of targetArray[i].eventArray) {
-                        if (x.eventType.match("onmousemove") &&
-                            x.ifCapture == true) {
-                            x.func(e);
-                        }
-                    }
-                }
-                for (let i = targetArray.length - 1; i >= 0; i--) {
-                    for (let x of targetArray[i].eventArray) {
-                        if (x.eventType.match("onmousemove") &&
-                            x.ifCapture == false) {
-                            x.func(e);
-                        }
-                    }
-                }
-            }
-        }
-        window.onmouseup = (e) => {
-            isMouseDown = false;
-            let targetArray = EventManager.getInstance().targetArray;
-            targetArray.splice(0, targetArray.length);
-            let newHitRusult = stage.hitTest(e.offsetX, e.offsetY);
-            for (let i = 0; i < targetArray.length; i++) {
-                for (let x of targetArray[i].eventArray) {
-                    if (x.eventType.match("onclick") &&
-                        newHitRusult == hitResult &&
-                        x.ifCapture == true) {
-                        x.func(e);
-                    }
-                }
-            }
-            for (let i = targetArray.length - 1; i >= 0; i--) {
-                for (let x of targetArray[i].eventArray) {
-                    if (x.eventType.match("onclick") &&
-                        newHitRusult == hitResult &&
-                        x.ifCapture == false) {
-                        x.func(e);
-                    }
-                }
-            }
-        }
-        return stage;
+        window.onmousedown = (e) =>{
+        let x = e.offsetX - 3;
+        let y = e.offsetY - 3;
+        TouchEventService.stageX = x;
+        TouchEventService.stageY = y;
+        Stage.stageX = TouchEventService.stageX;
+        Stage.stageY = TouchEventService.stageY;
+        startPoint.x = x;
+        startPoint.y = y;
+        movingPoint.x = x;
+        movingPoint.y = y;
+        TouchEventService.currentType = TouchEventsType.MOUSEDOWN;
+        currentTarget = stage.hitTest(x,y);
+        startTarget = currentTarget;
+        TouchEventService.getInstance().toDo();
+        isMouseDown = true;
     }
 
-    class CanvasRenderer {
+    window.onmouseup = (e) =>{
+        let x = e.offsetX - 3;
+        let y = e.offsetY - 3;
+        TouchEventService.stageX = x;
+        TouchEventService.stageY = y;
+        Stage.stageX = TouchEventService.stageX;
+        Stage.stageY = TouchEventService.stageY;
+        var target = stage.hitTest(x,y);
+        if(target == currentTarget){
+            TouchEventService.currentType = TouchEventsType.CLICK;
+        }
+        else{
+            TouchEventService.currentType = TouchEventsType.MOUSEUP
+        }
+        TouchEventService.getInstance().toDo();
+        currentTarget = null;
+        isMouseDown = false;
+    }
+
+    window.onmousemove = (e) =>{
+        if(isMouseDown){
+            let x = e.offsetX - 3;
+            let y = e.offsetY - 3;
+            TouchEventService.stageX = x;
+            TouchEventService.stageY = y;
+            Stage.stageX = TouchEventService.stageX;
+            Stage.stageY = TouchEventService.stageY;
+            TouchEventService.currentType = TouchEventsType.MOUSEMOVE;
+            currentTarget = stage.hitTest(x,y);
+            TouchEventService.getInstance().toDo();
+            movingPoint.x = x;
+            movingPoint.y = y;
+
+        }
+    }
+
+
+        return stage;
+        
+    }
+
+    class CanvasRenderer{
         constructor(private stage: DisplayObjectContainer, private context2D: CanvasRenderingContext2D) {
 
         }
@@ -101,7 +106,7 @@ namespace engine {
         }
 
         renderContainer(container: DisplayObjectContainer) {
-            for (let child of container.children) {
+            for (let child of container.childArray) {
                 let context2D = this.context2D;
                 context2D.globalAlpha = child.globalAlpha;
                 let m = child.globalMatrix;
@@ -119,40 +124,20 @@ namespace engine {
             }
         }
 
-        renderBitmap(bitmap: Bitmap) {
-            //  if (bitmap.imageCache == null) {
-            //     let img = new Image();
-            //     img.src = bitmap.texture;
-            //     img.onload = () => {
-            //         this.context2D.drawImage(img, 0, 0);
-            //         bitmap.imageCache = img;
-            //     }
-            // } else {
-            //     bitmap.imageCache.src=bitmap.texture;
-            //     this.context2D.drawImage(bitmap.imageCache, 0, 0);
-            // }
-            if (bitmap.texture != null) {
-                if (bitmap.texture.bitmapData == null) {
-                    let img = new Image();
-                    img.src = bitmap.texture.id;
-                    img.onload = () => {
-                        this.context2D.drawImage(img, 0, 0);
-                        bitmap.texture.bitmapData = img;
-                    }
-                } else {
-                    this.context2D.drawImage(bitmap.texture.bitmapData, 0, 0);
-                }
-            } else {
-                console.log("no bitmap resource find");
+        renderBitmap(bitmap : Bitmap){
+            if(bitmap.texture.data){
+                this.context2D.drawImage(bitmap.texture.data,0,0);
             }
-
-
         }
 
-        renderTextField(textField: TextField) {
-            this.context2D.fillText(textField.text, 0, 10);
-            textField._measureTextWidth = this.context2D.measureText(textField.text).width;
+        renderTextField(textField : TextField){
+            this.context2D.fillStyle = textField.textColor;
+            this.context2D.font = textField.textType;
+            this.context2D.fillText(textField.text,0,0 + textField.size);
         }
     }
+
+
+
 
 }
